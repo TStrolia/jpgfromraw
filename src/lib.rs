@@ -351,3 +351,20 @@ pub async fn extract_directory(config: ExtractionConfig) -> Result<()> {
     let output_dir = Arc::new(output_dir);
     process_directory(&input_dir, output_dir, extension, transfers).await
 }
+
+/// Extract a preview from a single file to a specific output path.
+pub async fn extract_file(input_path: &Path, output_path: &Path) -> Result<()> {
+    let in_file = platform::open_raw(input_path).await?;
+    let raw_buf = Arc::new(platform::mmap_raw(in_file)?);
+
+    let raw_buf_clone = raw_buf.clone();
+    let jpeg_info = tokio::task::spawn_blocking(move || {
+        find_largest_embedded_jpeg(&raw_buf_clone)
+    }).await??;
+
+    let jpeg_buf = extract_jpeg(&raw_buf, &jpeg_info)?;
+
+    write_jpeg(output_path, jpeg_buf, &jpeg_info).await?;
+    
+    Ok(())
+}
